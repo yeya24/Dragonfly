@@ -2,6 +2,7 @@ package task
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dragonflyoss/Dragonfly/apis/types"
 	errorType "github.com/dragonflyoss/Dragonfly/common/errors"
@@ -37,6 +38,26 @@ type Manager struct {
 	progressMgr  mgr.ProgressMgr
 	cdnMgr       mgr.CDNMgr
 	schedulerMgr mgr.SchedulerMgr
+	metrics      *metrics
+}
+
+type metrics struct {
+	tasks               *prometheus.GaugeVec
+	triggerCdnTotal     *prometheus.CounterVec
+	triggerCdnFailTotal *prometheus.CounterVec
+}
+
+func newMetrics() *metrics {
+	return &metrics{
+		tasks: cutil.NewGauge(config.SubsystemSupernode, "tasks_status",
+			"current Supernode tasks", []string{"id", "callsystem", "cdnstatus"}),
+
+		triggerCdnTotal: cutil.NewCounter(config.SubsystemSupernode, "trigger_cdn_total",
+			"total times of triggering cdn", []string{}),
+
+		triggerCdnFailTotal: cutil.NewCounter(config.SubsystemSupernode, "trigger_cdn_failed_total",
+			"total failed times of triggering cdn", []string{}),
+	}
 }
 
 // NewManager returns a new Manager Object.
@@ -51,6 +72,7 @@ func NewManager(cfg *config.Config, peerMgr mgr.PeerMgr, dfgetTaskMgr mgr.DfgetT
 		progressMgr:  progressMgr,
 		cdnMgr:       cdnMgr,
 		schedulerMgr: schedulerMgr,
+		metrics:      newMetrics(),
 	}, nil
 }
 

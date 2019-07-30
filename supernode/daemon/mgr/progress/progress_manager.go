@@ -2,6 +2,7 @@ package progress
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/dragonflyoss/Dragonfly/apis/types"
 	errorType "github.com/dragonflyoss/Dragonfly/common/errors"
@@ -53,6 +54,8 @@ type Manager struct {
 	clientBlackInfo *cutil.SyncMap
 
 	cfg *config.Config
+
+	metrics *metrics
 }
 
 // NewManager returns a new Manager.
@@ -64,7 +67,19 @@ func NewManager(cfg *config.Config) (*Manager, error) {
 		peerProgress:    newStateSyncMap(),
 		pieceProgress:   newStateSyncMap(),
 		clientBlackInfo: cutil.NewSyncMap(),
+		metrics: newMetrics(),
 	}, nil
+}
+
+type metrics struct {
+	progressNum *prometheus.CounterVec
+}
+
+func newMetrics() *metrics {
+	return &metrics{
+		progressNum: cutil.NewCounter(config.SubsystemSupernode, "progress_total",
+			"current Supernode progress", []string{}),
+	}
 }
 
 // InitProgress inits the correlation information between peers and pieces, etc.

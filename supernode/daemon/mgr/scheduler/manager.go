@@ -2,6 +2,7 @@ package scheduler
 
 import (
 	"context"
+	"github.com/prometheus/client_golang/prometheus"
 	"math/rand"
 	"sort"
 	"time"
@@ -25,6 +26,19 @@ var _ mgr.SchedulerMgr = &Manager{}
 type Manager struct {
 	cfg         *config.Config
 	progressMgr mgr.ProgressMgr
+	metrics     *metrics
+}
+
+type metrics struct {
+	scheduleDurationSeconds *prometheus.HistogramVec
+}
+
+func newMetrics() *metrics {
+	return &metrics{
+		scheduleDurationSeconds: cutil.NewHistogram(config.SubsystemSupernode, "schedule_duration_milliseconds",
+			"duration milliseconds for scheduling", []string{"taskid", "clientid", "peerid"},
+			[]float64{.1, .2, .4, 1, 3, 8, 20, 60, 120}),
+	}
 }
 
 // NewManager returns a new Manager.
@@ -32,11 +46,13 @@ func NewManager(cfg *config.Config, progressMgr mgr.ProgressMgr) (*Manager, erro
 	return &Manager{
 		cfg:         cfg,
 		progressMgr: progressMgr,
+		metrics:     newMetrics(),
 	}, nil
 }
 
 // Schedule gets scheduler result with specified taskID, clientID and peerID through some rules.
 func (sm *Manager) Schedule(ctx context.Context, taskID, clientID, peerID string) ([]*mgr.PieceResult, error) {
+	start := time.Now()
 	// get available pieces
 	pieceAvailable, err := sm.progressMgr.GetPieceProgressByCID(ctx, taskID, clientID, "available")
 	if err != nil {
@@ -65,7 +81,7 @@ func (sm *Manager) Schedule(ctx context.Context, taskID, clientID, peerID string
 	}
 	logrus.Debugf("scheduler get pieces %v with prioritize for taskID(%s)", pieceNums, taskID)
 
-	return sm.getPieceResults(ctx, taskID, clientID, peerID, pieceNums, runningCount)
+	return sm.getPieceResults(ctx, taskID, clientID, peerID, pieceNums, runningCount, start)
 }
 
 func (sm *Manager) sort(ctx context.Context, pieceNums, runningPieces []int, taskID string) ([]int, error) {
@@ -124,7 +140,7 @@ func (sm *Manager) sortExecutor(ctx context.Context, pieceNums []int, centerNum 
 	})
 }
 
-func (sm *Manager) getPieceResults(ctx context.Context, taskID, clientID, peerID string, pieceNums []int, runningCount int) ([]*mgr.PieceResult, error) {
+func (sm *Manager) getPieceResults(ctx context.Context, taskID, clientID, peerID string, pieceNums []int, runningCount int, startTime time.Time) ([]*mgr.PieceResult, error) {
 	// validate ClientErrorCount
 	var useSupernode bool
 	srcPeerState, err := sm.progressMgr.GetPeerStateByPeerID(ctx, peerID)
@@ -171,6 +187,8 @@ func (sm *Manager) getPieceResults(ctx context.Context, taskID, clientID, peerID
 			break
 		}
 	}
+
+	sm.metrics.scheduleDurationSeconds.WithLabelValues(taskID,clientID,peerID).Observe(float64(time.Since(startTime).Nanoseconds())/float64(time.Millisecond/time.Nanosecond))
 
 	return pieceResults, nil
 }

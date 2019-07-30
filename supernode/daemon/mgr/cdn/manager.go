@@ -3,6 +3,7 @@ package cdn
 import (
 	"context"
 	"crypto/md5"
+	"github.com/prometheus/client_golang/prometheus"
 	"path"
 
 	"github.com/dragonflyoss/Dragonfly/apis/types"
@@ -30,6 +31,19 @@ type Manager struct {
 	detector        *cacheDetector
 	pieceMD5Manager *pieceMD5Mgr
 	writer          *superWriter
+	metrics         *metrics
+}
+
+type metrics struct {
+	cacheFullHitTotal *prometheus.CounterVec
+}
+
+func newMetrics() *metrics {
+	return &metrics{
+		cacheFullHitTotal: cutil.NewCounter(config.SubsystemSupernode, "cdn_cache_hit_total",
+			"total times of hitting cdn cache", []string{"taskid"},
+		),
+	}
 }
 
 // NewManager returns a new Manager.
@@ -49,6 +63,7 @@ func NewManager(cfg *config.Config, cacheStore *store.Store, progressManager mgr
 		cdnReporter:     cdnReporter,
 		detector:        newCacheDetector(cacheStore, metaDataManager),
 		writer:          newSuperWriter(cacheStore, cdnReporter),
+		metrics:         newMetrics(),
 	}, nil
 }
 
@@ -73,6 +88,7 @@ func (cm *Manager) TriggerCDN(ctx context.Context, task *types.TaskInfo) (*types
 
 	if startPieceNum == -1 {
 		logrus.Infof("cache full hit for taskId:%s on local", task.ID)
+		cm.metrics.cacheFullHitTotal.WithLabelValues(task.ID).Inc()
 		return updateTaskInfo, nil
 	}
 

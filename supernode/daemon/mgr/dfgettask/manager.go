@@ -3,12 +3,13 @@ package dfgettask
 import (
 	"context"
 	"fmt"
-
 	"github.com/dragonflyoss/Dragonfly/apis/types"
 	errorType "github.com/dragonflyoss/Dragonfly/common/errors"
 	cutil "github.com/dragonflyoss/Dragonfly/common/util"
+	"github.com/dragonflyoss/Dragonfly/supernode/config"
 	"github.com/dragonflyoss/Dragonfly/supernode/daemon/mgr"
 	dutil "github.com/dragonflyoss/Dragonfly/supernode/daemon/util"
+	"github.com/prometheus/client_golang/prometheus"
 
 	"github.com/pkg/errors"
 )
@@ -19,6 +20,18 @@ var _ mgr.DfgetTaskMgr = &Manager{}
 type Manager struct {
 	dfgetTaskStore *dutil.Store
 	ptoc           *cutil.SyncMap
+	metrics        *metrics
+}
+
+type metrics struct {
+	dfgetTasksNum *prometheus.GaugeVec
+}
+
+func newMetrics() *metrics {
+	return &metrics{
+		dfgetTasksNum: cutil.NewGauge(config.SubsystemSupernode, "dfgettasks",
+			"number of dfget tasks", []string{"taskid", "cid", "pid"}),
+	}
 }
 
 // NewManager returns a new Manager.
@@ -26,6 +39,7 @@ func NewManager() (*Manager, error) {
 	return &Manager{
 		dfgetTaskStore: dutil.NewStore(),
 		ptoc:           cutil.NewSyncMap(),
+		metrics:        newMetrics(),
 	}, nil
 }
 
@@ -56,6 +70,7 @@ func (dtm *Manager) Add(ctx context.Context, dfgetTask *types.DfGetTask) error {
 
 	dtm.ptoc.Add(generatePeerKey(dfgetTask.PeerID, dfgetTask.TaskID), dfgetTask.CID)
 	dtm.dfgetTaskStore.Put(key, dfgetTask)
+	dtm.metrics.dfgetTasksNum.WithLabelValues(dfgetTask.TaskID, dfgetTask.CID, dfgetTask.PeerID).Set(1)
 	return nil
 }
 
@@ -86,6 +101,7 @@ func (dtm *Manager) Delete(ctx context.Context, clientID, taskID string) error {
 		return err
 	}
 	dtm.ptoc.Delete(generatePeerKey(dfgetTask.PeerID, dfgetTask.TaskID))
+	dtm.metrics.dfgetTasksNum.WithLabelValues(dfgetTask.TaskID, dfgetTask.CID, dfgetTask.PeerID).Set(0)
 
 	return dtm.dfgetTaskStore.Delete(key)
 }

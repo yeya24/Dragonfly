@@ -3,14 +3,13 @@ package task
 import (
 	"context"
 	"fmt"
-	"net/http"
-
 	"github.com/dragonflyoss/Dragonfly/apis/types"
 	errorType "github.com/dragonflyoss/Dragonfly/common/errors"
 	cutil "github.com/dragonflyoss/Dragonfly/common/util"
 	"github.com/dragonflyoss/Dragonfly/supernode/config"
 	"github.com/dragonflyoss/Dragonfly/supernode/daemon/mgr"
 	"github.com/dragonflyoss/Dragonfly/supernode/util"
+	"net/http"
 
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
@@ -75,6 +74,7 @@ func (tm *Manager) addOrUpdateTask(ctx context.Context, req *types.TaskCreateReq
 	task.PieceTotal = int32((fileLength + (int64(pieceSize) - 1)) / int64(pieceSize))
 
 	tm.taskStore.Put(taskID, task)
+	tm.metrics.tasks.WithLabelValues(taskID, task.CallSystem, task.CdnStatus).Set(1)
 	return task, nil
 }
 
@@ -126,7 +126,9 @@ func (tm *Manager) updateTask(taskID string, updateTaskInfo *types.TaskInfo) err
 
 		// only update the task CdnStatus when the new CDNStatus and
 		// the origin CDNStatus both not equals success
+		tm.metrics.tasks.WithLabelValues(taskID, task.CallSystem, task.CdnStatus).Set(0)
 		task.CdnStatus = updateTaskInfo.CdnStatus
+		tm.metrics.tasks.WithLabelValues(taskID, task.CallSystem, task.CdnStatus).Set(1)
 		return nil
 	}
 
@@ -147,7 +149,10 @@ func (tm *Manager) updateTask(taskID string, updateTaskInfo *types.TaskInfo) err
 	if pieceTotal != 0 {
 		task.PieceTotal = pieceTotal
 	}
+
+	tm.metrics.tasks.WithLabelValues(taskID, task.CallSystem, task.CdnStatus).Set(0)
 	task.CdnStatus = updateTaskInfo.CdnStatus
+	tm.metrics.tasks.WithLabelValues(taskID, task.CallSystem, task.CdnStatus).Set(1)
 
 	return nil
 }
@@ -190,7 +195,9 @@ func (tm *Manager) triggerCdnSyncAction(ctx context.Context, task *types.TaskInf
 
 	go func() {
 		updateTaskInfo, err := tm.cdnMgr.TriggerCDN(ctx, task)
+		tm.metrics.triggerCdnTotal.WithLabelValues().Inc()
 		if err != nil {
+			tm.metrics.triggerCdnFailTotal.WithLabelValues().Inc()
 			logrus.Errorf("trigger cdn get error: %v", err)
 		}
 		tm.updateTask(task.ID, updateTaskInfo)
