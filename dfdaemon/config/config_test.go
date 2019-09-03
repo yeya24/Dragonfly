@@ -28,7 +28,6 @@ import (
 
 	"github.com/dragonflyoss/Dragonfly/dfdaemon/constant"
 	"github.com/dragonflyoss/Dragonfly/pkg/errortypes"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 	"github.com/stretchr/testify/suite"
@@ -93,21 +92,6 @@ func (ts *configTestSuite) TestValidateDFPath() {
 
 	c.DFPath = fmt.Sprintf("/df-test-%d-%d", time.Now().UnixNano(), rand.Int())
 	r.Equal(constant.CodeExitDfgetNotFound, getCode(c.Validate()))
-}
-
-func (ts *configTestSuite) TestValidateRateLimit() {
-	c := defaultConfig()
-	r := ts.Require()
-
-	for _, l := range []string{"M", "K", "1KB"} {
-		c.RateLimit = l
-		r.Equal(constant.CodeExitRateLimitInvalid, getCode(c.Validate()))
-	}
-
-	for _, l := range []string{"1M", "20K", "20M"} {
-		c.RateLimit = l
-		r.Nil(c.Validate())
-	}
 }
 
 func (ts *configTestSuite) TestURLNew() {
@@ -362,11 +346,10 @@ func getCode(err error) int {
 
 func defaultConfig() *Properties {
 	return &Properties{
-		Port:      65001,
-		HostIP:    "127.0.0.1",
-		DFRepo:    "/tmp",
-		DFPath:    "/tmp",
-		RateLimit: "20M",
+		Port:   65001,
+		HostIP: "127.0.0.1",
+		DFRepo: "/tmp",
+		DFPath: "/tmp",
 	}
 }
 

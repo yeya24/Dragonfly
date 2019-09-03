@@ -30,6 +30,7 @@ import (
 
 	"github.com/dragonflyoss/Dragonfly/pkg/errortypes"
 	"github.com/dragonflyoss/Dragonfly/pkg/fileutils"
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
 	"github.com/dragonflyoss/Dragonfly/pkg/netutils"
 	"github.com/dragonflyoss/Dragonfly/pkg/printer"
 	"github.com/dragonflyoss/Dragonfly/pkg/stringutils"
@@ -52,21 +53,50 @@ import (
 // 		nodes:
 // 		    - 127.0.0.1
 // 		    - 10.10.10.1
-// 		localLimit: 20971520
-// 		totalLimit: 20971520
+// 		localLimit: 20M
+// 		totalLimit: 20M
 // 		clientQueueSize: 6
 type Properties struct {
 	// Nodes specify supernodes.
-	Nodes []string `yaml:"nodes"`
+	Nodes []string `yaml:"nodes,omitempty"`
 
-	// LocalLimit rate limit about a single download task,format: 20M/m/K/k.
-	LocalLimit int `yaml:"localLimit"`
+	// LocalLimit rate limit about a single download task,format: M/m/K/k/B.
+	LocalLimit model.Rate `yaml:"localLimit,omitempty"`
 
-	// Minimal rate about a single download task,format: 20M/m/K/k.
-	MinRate int `yaml:"minRate"`
+	// Minimal rate about a single download task,format: M/m/K/k/B.
+	MinRate model.Rate `yaml:"minRate,omitempty"`
 
-	// TotalLimit rate limit about the whole host,format: 20M/m/K/k.
-	TotalLimit int `yaml:"totalLimit"`
+	// TotalLimit rate limit about the whole host,format: M/m/K/k/B.
+	TotalLimit model.Rate `yaml:"totalLimit,omitempty"`
+
+	// Timeout download timeout.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
+
+	// Md5 expected file md5.
+	Md5 string `yaml:"md5,omitempty"`
+
+	// Identifier identify download task, it is available merely when md5 param not exist.
+	Identifier string `yaml:"identifier,omitempty"`
+
+	// CallSystem system name that executes dfget.
+	CallSystem string `yaml:"callSystem,omitempty"`
+
+	// CA certificate to verify when supernode interact with the source.
+	Cacerts []string `yaml:"cacert,omitempty"`
+
+	// Filter filter some query params of url, use char '&' to separate different params.
+	// eg: -f 'key&sign' will filter 'key' and 'sign' query param.
+	// in this way, different urls correspond one same download task that can use p2p mode.
+	Filter []string `yaml:"filter,omitempty"`
+
+	// Notbs indicates whether to not back source to download when p2p fails.
+	Notbs bool `yaml:"notbs,omitempty"`
+
+	// DFDaemon indicates whether the caller is from dfdaemon, this cannot configured in config files.
+	DFDaemon bool `yaml:"-"`
+
+	// Insecure indicates whether skip secure verify when supernode interact with the source.
+	Insecure bool `yaml:"insecure,omitempty"`
 
 	// ClientQueueSize is the size of client queue
 	// which controls the number of pieces that can be processed simultaneously.
@@ -143,16 +173,16 @@ type Config struct {
 	Output string `json:"output"`
 
 	// LocalLimit rate limit about a single download task,format: 20M/m/K/k.
-	LocalLimit int `json:"localLimit,omitempty"`
+	LocalLimit model.Rate `json:"localLimit,omitempty"`
 
 	// Minimal rate about a single download task,format: 20M/m/K/k.
-	MinRate int `json:"minRate,omitempty"`
+	MinRate model.Rate `json:"minRate,omitempty"`
 
 	// TotalLimit rate limit about the whole host,format: 20M/m/K/k.
-	TotalLimit int `json:"totalLimit,omitempty"`
+	TotalLimit model.Rate `json:"totalLimit,omitempty"`
 
 	// Timeout download timeout(second).
-	Timeout int `json:"timeout,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty"`
 
 	// Md5 expected file md5.
 	Md5 string `json:"md5,omitempty"`
@@ -190,9 +220,6 @@ type Config struct {
 
 	// Insecure indicates whether skip secure verify when supernode interact with the source.
 	Insecure bool `json:"insecure,omitempty"`
-
-	// ShowBar show progress bar, it's conflict with `--console`.
-	ShowBar bool `json:"showBar,omitempty"`
 
 	// Console show log on console, it's conflict with `--showbar`.
 	Console bool `json:"console,omitempty"`

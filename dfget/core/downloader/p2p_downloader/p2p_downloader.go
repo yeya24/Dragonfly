@@ -280,7 +280,7 @@ func (p2p *P2PDownloader) getPullRate(data *types.PullPieceTaskResponseContinueD
 
 	localRate := data.DownLink * 1024
 	if p2p.cfg.LocalLimit > 0 {
-		localRate = p2p.cfg.LocalLimit
+		localRate = int(p2p.cfg.LocalLimit)
 	}
 
 	// Calculate the download speed limit

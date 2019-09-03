@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
 	"gopkg.in/yaml.v2"
 
 	"github.com/dragonflyoss/Dragonfly/pkg/fileutils"
@@ -97,9 +98,9 @@ func NewBaseProperties() *BaseProperties {
 		PeerDownLimit:           5,
 		EliminationLimit:        5,
 		FailureCountLimit:       5,
-		LinkLimit:               20,
-		SystemReservedBandwidth: 20,
-		MaxBandwidth:            200,
+		LinkLimit:               model.Rate(20 * 1024 * 1024),
+		SystemReservedBandwidth: model.Rate(20 * 1024 * 1024),
+		MaxBandwidth:            model.Rate(200 * 1024 * 1024),
 		EnableProfiler:          false,
 		Debug:                   false,
 		FailAccessInterval:      DefaultFailAccessInterval,
@@ -163,19 +164,17 @@ type BaseProperties struct {
 	// default: 5
 	FailureCountLimit int `yaml:"failureCountLimit"`
 
-	// LinkLimit is set for supernode to limit every piece download network speed (unit: MB/s).
+	// LinkLimit is set for supernode to limit every piece download network speed.
 	// default: 20
-	LinkLimit int `yaml:"linkLimit"`
+	LinkLimit model.Rate `yaml:"linkLimit"`
 
 	// SystemReservedBandwidth is the network bandwidth reserved for system software.
-	// unit: MB/s
 	// default: 20
-	SystemReservedBandwidth int `yaml:"systemReservedBandwidth"`
+	SystemReservedBandwidth model.Rate `yaml:"systemReservedBandwidth"`
 
 	// MaxBandwidth is the network bandwidth that supernode can use.
-	// unit: MB/s
 	// default: 200
-	MaxBandwidth int `yaml:"maxBandwidth"`
+	MaxBandwidth model.Rate `yaml:"maxBandwidth"`
 
 	// Whether to enable profiler
 	// default: false

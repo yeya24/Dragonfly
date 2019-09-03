@@ -24,10 +24,12 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/dragonflyoss/Dragonfly/dfdaemon/constant"
+	"github.com/dragonflyoss/Dragonfly/dfget/config"
 	dferr "github.com/dragonflyoss/Dragonfly/pkg/errortypes"
-
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
 )
@@ -97,11 +99,10 @@ type Properties struct {
 	MaxProcs int `yaml:"maxprocs" json:"maxprocs"`
 
 	// dfget config
-	DfgetFlags []string `yaml:"dfget_flags" json:"dfget_flags"`
-	SuperNodes []string `yaml:"supernodes" json:"supernodes"`
-	RateLimit  string   `yaml:"ratelimit" json:"ratelimit"`
-	DFRepo     string   `yaml:"localrepo" json:"localrepo"`
-	DFPath     string   `yaml:"dfpath" json:"dfpath"`
+	GlobalDfgetConfig *config.Properties `yaml:"dfget_flags" json:"dfget_flags"`
+	SuperNodes        []string           `yaml:"supernodes" json:"supernodes"`
+	DFRepo            string             `yaml:"localrepo" json:"localrepo"`
+	DFPath            string             `yaml:"dfpath" json:"dfpath"`
 }
 
 // Validate validates the config
@@ -127,30 +128,24 @@ func (p *Properties) Validate() error {
 		)
 	}
 
-	if ok, _ := regexp.MatchString("^[[:digit:]]+[MK]$", p.RateLimit); !ok {
-		return dferr.Newf(
-			constant.CodeExitRateLimitInvalid,
-			"invalid rate limit %s", p.RateLimit,
-		)
-	}
-
 	return nil
 }
 
 // DFGetConfig returns config for dfget downloader
 func (p *Properties) DFGetConfig() DFGetConfig {
 	// init DfgetFlags
-	var dfgetFlags []string
-	dfgetFlags = append(dfgetFlags, p.DfgetFlags...)
-	dfgetFlags = append(dfgetFlags, "--dfdaemon")
+	dfgetFlags := convertDFGetConfigToArgs(p.GlobalDfgetConfig)
 	if p.Verbose {
 		dfgetFlags = append(dfgetFlags, "--verbose")
 	}
 
+	// Use dfdaemon global supernodes
+	if len(p.GlobalDfgetConfig.Nodes) == 0 && len(p.SuperNodes) > 0 {
+		dfgetFlags = append(dfgetFlags, "--node", strings.Join(p.SuperNodes, ","))
+	}
+
 	dfgetConfig := DFGetConfig{
 		DfgetFlags: dfgetFlags,
-		SuperNodes: p.SuperNodes,
-		RateLimit:  p.RateLimit,
 		DFRepo:     p.DFRepo,
 		DFPath:     p.DFPath,
 	}
@@ -162,12 +157,10 @@ func (p *Properties) DFGetConfig() DFGetConfig {
 
 // DFGetConfig configures how dfdaemon calls dfget
 type DFGetConfig struct {
-	DfgetFlags  []string      `yaml:"dfget_flags"`
-	SuperNodes  []string      `yaml:"supernodes"`
-	RateLimit   string        `yaml:"ratelimit"`
-	DFRepo      string        `yaml:"localrepo"`
-	DFPath      string        `yaml:"dfpath"`
-	HostsConfig []*HijackHost `yaml:"hosts" json:"hosts"`
+	DfgetFlags  []string
+	DFRepo      string
+	DFPath      string
+	HostsConfig []*HijackHost
 }
 
 // RegistryMirror configures the mirror of the official docker registry
@@ -394,4 +387,55 @@ func NewProxy(regx string, useHTTPS bool, direct bool) (*Proxy, error) {
 // Match checks if the given url matches the rule
 func (r *Proxy) Match(url string) bool {
 	return r.Regx != nil && r.Regx.MatchString(url)
+}
+
+func convertDFGetConfigToArgs(properties *config.Properties) []string {
+	// if global config is not set, return default configuration
+	if properties == nil {
+		return []string{
+			"--locallimit", "20M",
+			"--ratelimit", "20M",
+			"--dfdaemon",
+		}
+	}
+	args := []string{"--dfdaemon"}
+	add := func(key, value string) {
+		if v := strings.TrimSpace(value); v != "" {
+			args = append(args, key, v)
+		}
+	}
+	if properties.Notbs {
+		args = append(args, "--notbs")
+	}
+	if len(properties.Nodes) > 0 {
+		add("--node", strings.Join(properties.Nodes, ","))
+	}
+	if len(properties.Filter) > 0 {
+		add("--filter", strings.Join(properties.Filter, ","))
+	}
+	if properties.Md5 != "" {
+		add("--md5", properties.Md5)
+	}
+	if properties.Identifier != "" {
+		add("--identifier", properties.Identifier)
+	}
+	if properties.CallSystem != "" {
+		add("--callsystem", properties.CallSystem)
+	}
+	if properties.Timeout != 0 {
+		add("--timeout", properties.Timeout.String())
+	}
+	if properties.LocalLimit != 0 {
+		add("--localimit", properties.LocalLimit.String())
+	}
+	if properties.TotalLimit != 0 {
+		add("--totallimit", properties.TotalLimit.String())
+	}
+	if properties.MinRate != 0 {
+		add("--minrate", properties.MinRate.String())
+	}
+	if properties.ClientQueueSize != 0 {
+		add("--clientqueue", strconv.Itoa(properties.ClientQueueSize))
+	}
+	return args
 }

@@ -175,7 +175,7 @@ func downloadFile(cfg *config.Config, supernodeAPI api.SupernodeAPI,
 		getter = p2pDown.NewP2PDownloader(cfg, supernodeAPI, register, result)
 	}
 
-	timeout := calculateTimeout(cfg.RV.FileLength, cfg.Timeout, cfg.MinRate)
+	timeout := calculateTimeout(cfg.RV.FileLength, cfg.Timeout, int64(cfg.MinRate))
 	err := downloader.DoDownloadTimeout(getter, timeout)
 	success := "SUCCESS"
 	if err != nil {
@@ -267,8 +267,8 @@ func checkConnectSupernode(nodes []string) (localIP string) {
 	return ""
 }
 
-func calculateTimeout(fileLength int64, defaultTimeoutSecond int, minRate int) time.Duration {
-	timeout := 5 * 60
+func calculateTimeout(fileLength int64, defaultTimeoutSecond time.Duration, minRate int64) time.Duration {
+	timeout := 5 * time.Minute
 	// avoid trigger panic when minRate equals zero
 	if minRate <= 0 {
 		minRate = config.DefaultMinRate
@@ -277,7 +277,7 @@ func calculateTimeout(fileLength int64, defaultTimeoutSecond int, minRate int) t
 	if defaultTimeoutSecond > 0 {
 		timeout = defaultTimeoutSecond
 	} else if fileLength > 0 {
-		timeout = int(fileLength/int64(minRate) + 10)
+		timeout = time.Duration(int(fileLength/minRate + 10))
 	}
-	return time.Duration(timeout) * time.Second
+	return timeout
 }
