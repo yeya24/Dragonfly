@@ -24,9 +24,14 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
+	"strings"
 
 	"github.com/dragonflyoss/Dragonfly/dfdaemon/constant"
+	"github.com/dragonflyoss/Dragonfly/dfget/config"
 	dferr "github.com/dragonflyoss/Dragonfly/pkg/errortypes"
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
+	"github.com/dragonflyoss/Dragonfly/pkg/netutils"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
@@ -40,10 +45,12 @@ var fs = afero.NewOsFs()
 // Properties holds all configurable properties of dfdaemon.
 // The default path is '/etc/dragonfly/dfdaemon.yml'
 // For examples:
-//     dfget_flags: ["--node","192.168.33.21","--verbose","--ip","192.168.33.23",
-//                   "--port","15001","--expiretime","3m0s","--alivetime","5m0s",
-//                   "-f","filterParam1&filterParam2"]
-//
+//     dfget_config:
+//       nodes: ["1.1.1.1:8002"]
+//       timeout: 5d
+//       localLimit: 20M
+//       totalLimit: 200M
+//       minRate: 64K
 //     registry_mirror:
 //       # url for the registry mirror
 //       remote: https://index.docker.io
@@ -97,11 +104,11 @@ type Properties struct {
 	MaxProcs int `yaml:"maxprocs" json:"maxprocs"`
 
 	// dfget config
-	DfgetFlags []string `yaml:"dfget_flags" json:"dfget_flags"`
-	SuperNodes []string `yaml:"supernodes" json:"supernodes"`
-	RateLimit  string   `yaml:"ratelimit" json:"ratelimit"`
-	DFRepo     string   `yaml:"localrepo" json:"localrepo"`
-	DFPath     string   `yaml:"dfpath" json:"dfpath"`
+	GlobalDfgetConfig *config.Properties `yaml:"dfget_config" json:"dfget_config"`
+	SuperNodes        []string           `yaml:"supernodes" json:"supernodes"`
+	RateLimit         model.Rate         `yaml:"ratelimit" json:"ratelimit"`
+	DFRepo            string             `yaml:"localrepo" json:"localrepo"`
+	DFPath            string             `yaml:"dfpath" json:"dfpath"`
 }
 
 // Validate validates the config
@@ -127,30 +134,29 @@ func (p *Properties) Validate() error {
 		)
 	}
 
-	if ok, _ := regexp.MatchString("^[[:digit:]]+[MK]$", p.RateLimit); !ok {
-		return dferr.Newf(
-			constant.CodeExitRateLimitInvalid,
-			"invalid rate limit %s", p.RateLimit,
-		)
-	}
-
 	return nil
 }
 
 // DFGetConfig returns config for dfget downloader
-func (p *Properties) DFGetConfig() DFGetConfig {
+func (p *Properties) DFGetConfig(conf *config.Properties) DFGetConfig {
 	// init DfgetFlags
-	var dfgetFlags []string
-	dfgetFlags = append(dfgetFlags, p.DfgetFlags...)
-	dfgetFlags = append(dfgetFlags, "--dfdaemon")
+	dfgetFlags := convertDFGetConfigToArgs(conf)
 	if p.Verbose {
 		dfgetFlags = append(dfgetFlags, "--verbose")
 	}
 
+	// if set supernodes in dfdaemon, dfget will use them,
+	// otherwise dfget will use the supernodes in config.
+	if len(p.SuperNodes) > 0 {
+		dfgetFlags = append(dfgetFlags, "--node", strings.Join(p.SuperNodes, ","))
+	} else if conf != nil && len(conf.Nodes) > 0 {
+		dfgetFlags = append(dfgetFlags, "--node", strings.Join(conf.Nodes, ","))
+	}
+
+	dfgetFlags = p.parseRateLimit(dfgetFlags, conf)
+
 	dfgetConfig := DFGetConfig{
 		DfgetFlags: dfgetFlags,
-		SuperNodes: p.SuperNodes,
-		RateLimit:  p.RateLimit,
 		DFRepo:     p.DFRepo,
 		DFPath:     p.DFPath,
 	}
@@ -162,12 +168,10 @@ func (p *Properties) DFGetConfig() DFGetConfig {
 
 // DFGetConfig configures how dfdaemon calls dfget
 type DFGetConfig struct {
-	DfgetFlags  []string      `yaml:"dfget_flags"`
-	SuperNodes  []string      `yaml:"supernodes"`
-	RateLimit   string        `yaml:"ratelimit"`
-	DFRepo      string        `yaml:"localrepo"`
-	DFPath      string        `yaml:"dfpath"`
-	HostsConfig []*HijackHost `yaml:"hosts" json:"hosts"`
+	DfgetFlags  []string
+	DFRepo      string
+	DFPath      string
+	HostsConfig []*HijackHost
 }
 
 // RegistryMirror configures the mirror of the official docker registry
@@ -394,4 +398,77 @@ func NewProxy(regx string, useHTTPS bool, direct bool) (*Proxy, error) {
 // Match checks if the given url matches the rule
 func (r *Proxy) Match(url string) bool {
 	return r.Regx != nil && r.Regx.MatchString(url)
+}
+
+func convertDFGetConfigToArgs(properties *config.Properties) []string {
+	args := []string{"--dfdaemon"}
+	// if global config is not set, return default configuration
+	if properties == nil {
+		return args
+	}
+
+	add := func(key, value string) {
+		if v := strings.TrimSpace(value); v != "" {
+			args = append(args, key, v)
+		}
+	}
+	if properties.Notbs {
+		args = append(args, "--notbs")
+	}
+	if len(properties.Filter) > 0 {
+		add("--filter", strings.Join(properties.Filter, ","))
+	}
+	if properties.Md5 != "" {
+		add("--md5", properties.Md5)
+	}
+	if properties.Identifier != "" {
+		add("--identifier", properties.Identifier)
+	}
+	if properties.CallSystem != "" {
+		add("--callsystem", properties.CallSystem)
+	}
+	if properties.Timeout != 0 {
+		add("--timeout", properties.Timeout.String())
+	}
+	if properties.LocalLimit != 0 {
+		add("--locallimit", properties.LocalLimit.String())
+	}
+	if properties.TotalLimit != 0 {
+		add("--totallimit", properties.TotalLimit.String())
+	}
+	if properties.MinRate != 0 {
+		add("--minrate", properties.MinRate.String())
+	}
+	if properties.ClientQueueSize != 0 {
+		add("--clientqueue", strconv.Itoa(properties.ClientQueueSize))
+	}
+	return args
+}
+
+func (p *Properties) parseRateLimit(dfgetFlags []string, conf *config.Properties) []string {
+	// If don't set limit in dfget config, use dfdaemon rate limit.
+	if conf == nil {
+		if p.RateLimit != 0 {
+			dfgetFlags = append(dfgetFlags, "--locallimit", p.RateLimit.String())
+			dfgetFlags = append(dfgetFlags, "--totallimit", p.RateLimit.String())
+		} else {
+			// If ratelimit is unset and dfget config is nil, use calculated net limit.
+			rate := netutils.NetLimit()
+			dfgetFlags = append(dfgetFlags, "--locallimit", rate.String())
+			dfgetFlags = append(dfgetFlags, "--totallimit", rate.String())
+		}
+		return dfgetFlags
+	}
+
+	if p.RateLimit == 0 {
+		return nil
+	}
+
+	if conf.LocalLimit == 0 {
+		dfgetFlags = append(dfgetFlags, "--locallimit", p.RateLimit.String())
+	}
+	if conf.TotalLimit == 0 {
+		dfgetFlags = append(dfgetFlags, "--totallimit", p.RateLimit.String())
+	}
+	return dfgetFlags
 }

@@ -29,6 +29,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
 	"github.com/dragonflyoss/Dragonfly/pkg/stringutils"
 
 	log "github.com/sirupsen/logrus"
@@ -39,17 +40,18 @@ const (
 	layoutGMT = "GMT"
 )
 
-var defaultRateLimit = "20M"
+// default rate limit is 20M.
+var defaultRateLimit = 20 * model.MB
 
-// NetLimit parses speed of interface that it has prefix of eth.
-func NetLimit() string {
+// NetLimit parse speed of interface that it has prefix of eth.
+func NetLimit() *model.Rate {
 	defer func() {
 		if err := recover(); err != nil {
 			log.Errorf("parse default net limit error:%v", err)
 		}
 	}()
 	if runtime.NumCPU() < 24 {
-		return defaultRateLimit
+		return &defaultRateLimit
 	}
 
 	var ethtool string
@@ -60,13 +62,13 @@ func NetLimit() string {
 	}
 	if ethtool == "" {
 		log.Warn("ethtool not found")
-		return defaultRateLimit
+		return &defaultRateLimit
 	}
 
 	var maxInterfaceLimit = uint64(0)
 	interfaces, err := net.Interfaces()
 	if err != nil {
-		return defaultRateLimit
+		return &defaultRateLimit
 	}
 	compile := regexp.MustCompile("^[[:space:]]*([[:digit:]]+)[[:space:]]*Mb/s[[:space:]]*$")
 
@@ -107,10 +109,11 @@ func NetLimit() string {
 	}
 
 	if maxInterfaceLimit > 0 {
-		return strconv.FormatUint(maxInterfaceLimit/8, 10) + "M"
+		r := model.Rate(maxInterfaceLimit)
+		return &r
 	}
 
-	return defaultRateLimit
+	return &defaultRateLimit
 }
 
 // ExtractHost extracts host ip from the giving string.
@@ -281,7 +284,7 @@ func isExist(mmap map[string]bool, key string) bool {
 // CalculateTimeout calculate the timeout(in seconds) according to the fileLength and the min rate of network.
 //
 // The 0 will be returned when both minRate and defaultMinRate both are <=0.
-func CalculateTimeout(fileLength int64, minRate int, defaultMinRate int, reservedTime time.Duration) time.Duration {
+func CalculateTimeout(fileLength int64, minRate, defaultMinRate model.Rate, reservedTime time.Duration) time.Duration {
 	// ensure the minRate to avoid trigger panic when minRate equals zero
 	if fileLength <= 0 ||
 		(minRate <= 0 && defaultMinRate <= 0) {

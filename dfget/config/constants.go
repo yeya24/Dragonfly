@@ -18,6 +18,8 @@ package config
 
 import (
 	"time"
+
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
 )
 
 /* the reason of backing to source */
@@ -48,8 +50,8 @@ const (
 	DefaultYamlConfigFile  = "/etc/dragonfly/dfget.yml"
 	DefaultIniConfigFile   = "/etc/dragonfly.conf"
 	DefaultNode            = "127.0.0.1"
-	DefaultLocalLimit      = 20 * 1024 * 1024
-	DefaultMinRate         = 64 * 1024
+	DefaultLocalLimit      = 64 * model.MB
+	DefaultMinRate         = 64 * model.KB
 	DefaultClientQueueSize = 6
 )
 

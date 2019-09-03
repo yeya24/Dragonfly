@@ -30,6 +30,7 @@ import (
 
 	"github.com/dragonflyoss/Dragonfly/pkg/errortypes"
 	"github.com/dragonflyoss/Dragonfly/pkg/fileutils"
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
 	"github.com/dragonflyoss/Dragonfly/pkg/netutils"
 	"github.com/dragonflyoss/Dragonfly/pkg/printer"
 	"github.com/dragonflyoss/Dragonfly/pkg/stringutils"
@@ -52,27 +53,56 @@ import (
 // 		nodes:
 // 		    - 127.0.0.1
 // 		    - 10.10.10.1
-// 		localLimit: 20971520
-// 		totalLimit: 20971520
+// 		localLimit: 20M
+// 		totalLimit: 20M
 // 		clientQueueSize: 6
 type Properties struct {
 	// Nodes specify supernodes.
-	Nodes []string `yaml:"nodes"`
+	Nodes []string `yaml:"nodes,omitempty" json:"nodes,omitempty"`
 
-	// LocalLimit rate limit about a single download task,format: 20M/m/K/k.
-	LocalLimit int `yaml:"localLimit"`
+	// LocalLimit rate limit about a single download task,format: G/g/M/m/K/k/B.
+	LocalLimit model.Rate `yaml:"localLimit,omitempty" json:"localLimit,omitempty"`
 
-	// Minimal rate about a single download task,format: 20M/m/K/k.
-	MinRate int `yaml:"minRate"`
+	// Minimal rate about a single download task,format: G/g/M/m/K/k/B.
+	MinRate model.Rate `yaml:"minRate,omitempty" json:"minRate,omitempty"`
 
-	// TotalLimit rate limit about the whole host,format: 20M/m/K/k.
-	TotalLimit int `yaml:"totalLimit"`
+	// TotalLimit rate limit about the whole host,format: G/g/M/m/K/k/B.
+	TotalLimit model.Rate `yaml:"totalLimit,omitempty" json:"totalLimit,omitempty"`
+
+	// Timeout download timeout.
+	Timeout time.Duration `yaml:"timeout,omitempty" json:"timeout,omitempty"`
+
+	// Md5 expected file md5.
+	Md5 string `yaml:"md5,omitempty" json:"md5,omitempty"`
+
+	// Identifier identify download task, it is available merely when md5 param not exist.
+	Identifier string `yaml:"identifier,omitempty" json:"identifier,omitempty"`
+
+	// CallSystem system name that executes dfget.
+	CallSystem string `yaml:"callSystem,omitempty" json:"callSystem,omitempty"`
+
+	// CA certificate to verify when supernode interact with the source.
+	Cacert []string `yaml:"cacert,omitempty" json:"cacert,omitempty"`
+
+	// Filter filter some query params of url, use char '&' to separate different params.
+	// eg: -f 'key&sign' will filter 'key' and 'sign' query param.
+	// in this way, different urls correspond one same download task that can use p2p mode.
+	Filter []string `yaml:"filter,omitempty" json:"filter,omitempty"`
+
+	// Notbs indicates whether to not back source to download when p2p fails.
+	Notbs bool `yaml:"notbs,omitempty" json:"notbs,omitempty"`
+
+	// DFDaemon indicates whether the caller is from dfdaemon, this cannot configured in config files.
+	DFDaemon bool `yaml:"-"`
+
+	// Insecure indicates whether skip secure verify when supernode interact with the source.
+	Insecure bool `yaml:"insecure,omitempty" json:"insecure,omitempty"`
 
 	// ClientQueueSize is the size of client queue
 	// which controls the number of pieces that can be processed simultaneously.
 	// It is only useful when the Pattern equals "source".
 	// The default value is 6.
-	ClientQueueSize int `yaml:"clientQueueSize"`
+	ClientQueueSize int `yaml:"clientQueueSize" json:"clientQueueSize,omitempty"`
 }
 
 // NewProperties create a new properties with default values.
@@ -142,17 +172,17 @@ type Config struct {
 	// Output full output path.
 	Output string `json:"output"`
 
-	// LocalLimit rate limit about a single download task,format: 20M/m/K/k.
-	LocalLimit int `json:"localLimit,omitempty"`
+	// LocalLimit rate limit about a single download task,format: G/g/M/m/K/k.
+	LocalLimit model.Rate `json:"localLimit,omitempty"`
 
-	// Minimal rate about a single download task,format: 20M/m/K/k.
-	MinRate int `json:"minRate,omitempty"`
+	// Minimal rate about a single download task,format: G/g/M/m/K/k.
+	MinRate model.Rate `json:"minRate,omitempty"`
 
-	// TotalLimit rate limit about the whole host,format: 20M/m/K/k.
-	TotalLimit int `json:"totalLimit,omitempty"`
+	// TotalLimit rate limit about the whole host,format: G/g/M/m/K/k.
+	TotalLimit model.Rate `json:"totalLimit,omitempty"`
 
 	// Timeout download timeout(second).
-	Timeout int `json:"timeout,omitempty"`
+	Timeout time.Duration `json:"timeout,omitempty"`
 
 	// Md5 expected file md5.
 	Md5 string `json:"md5,omitempty"`
@@ -208,25 +238,25 @@ type Config struct {
 	ClientQueueSize int `json:"clientQueueSize,omitempty"`
 
 	// Start time.
-	StartTime time.Time `json:"startTime"`
+	StartTime time.Time `json:"-"`
 
 	// Sign the value is 'Pid + float64(time.Now().UnixNano())/float64(time.Second) format: "%d-%.3f"'.
 	// It is unique for downloading task, and is used for debugging.
-	Sign string `json:"sign"`
+	Sign string `json:"-"`
 
 	// Username of the system currently logged in.
-	User string `json:"user"`
+	User string `json:"-"`
 
 	// WorkHome work home path,
 	// default: `$HOME/.small-dragonfly`.
-	WorkHome string `json:"workHome"`
+	WorkHome string `json:"-"`
 
 	// Config file paths,
 	// default:["/etc/dragonfly/dfget.yml","/etc/dragonfly.conf"].
 	//
 	// NOTE: It is recommended to use `/etc/dragonfly/dfget.yml` as default,
 	// and the `/etc/dragonfly.conf` is just to ensure compatibility with previous versions.
-	ConfigFiles []string `json:"configFile"`
+	ConfigFiles []string `json:"-"`
 
 	// RV stores the variables that are initialized and used at downloading task executing.
 	RV RuntimeVariable `json:"-"`

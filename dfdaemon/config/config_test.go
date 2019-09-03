@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/dragonflyoss/Dragonfly/dfdaemon/constant"
+	"github.com/dragonflyoss/Dragonfly/dfget/config"
 	"github.com/dragonflyoss/Dragonfly/pkg/errortypes"
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/afero"
@@ -93,21 +95,6 @@ func (ts *configTestSuite) TestValidateDFPath() {
 
 	c.DFPath = fmt.Sprintf("/df-test-%d-%d", time.Now().UnixNano(), rand.Int())
 	r.Equal(constant.CodeExitDfgetNotFound, getCode(c.Validate()))
-}
-
-func (ts *configTestSuite) TestValidateRateLimit() {
-	c := defaultConfig()
-	r := ts.Require()
-
-	for _, l := range []string{"M", "K", "1KB"} {
-		c.RateLimit = l
-		r.Equal(constant.CodeExitRateLimitInvalid, getCode(c.Validate()))
-	}
-
-	for _, l := range []string{"1M", "20K", "20M"} {
-		c.RateLimit = l
-		r.Nil(c.Validate())
-	}
 }
 
 func (ts *configTestSuite) TestURLNew() {
@@ -366,10 +353,40 @@ func defaultConfig() *Properties {
 		HostIP:    "127.0.0.1",
 		DFRepo:    "/tmp",
 		DFPath:    "/tmp",
-		RateLimit: "20M",
+		RateLimit: 20 * model.MB,
 	}
 }
 
 func TestConfig(t *testing.T) {
 	suite.Run(t, &configTestSuite{})
+}
+
+func (ts *configTestSuite) TestConvertDFGetConfigToArgs() {
+	r := ts.Require()
+	var cases = []struct {
+		input  *config.Properties
+		output []string
+	}{
+		{
+			nil,
+			[]string{"--dfdaemon"},
+		},
+		{
+			&config.Properties{
+				Md5: "aaa",
+			},
+			[]string{"--dfdaemon", "--md5", "aaa"},
+		},
+		{
+			&config.Properties{
+				CallSystem: "test",
+			},
+			[]string{"--dfdaemon", "--callsystem", "test"},
+		},
+	}
+
+	for _, cc := range cases {
+		output := convertDFGetConfigToArgs(cc.input)
+		r.EqualValues(output, cc.output)
+	}
 }

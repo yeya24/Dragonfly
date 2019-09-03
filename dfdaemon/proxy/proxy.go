@@ -122,7 +122,7 @@ func NewFromConfig(c config.Properties) (*Proxy, error) {
 		WithRules(c.Proxies),
 		WithRegistryMirror(c.RegistryMirror),
 		WithDownloaderFactory(func() downloader.Interface {
-			return dfget.NewGetter(c.DFGetConfig())
+			return dfget.NewGetter(c.DFGetConfig(c.GlobalDfgetConfig))
 		}),
 	}
 
@@ -146,7 +146,6 @@ func NewFromConfig(c config.Properties) (*Proxy, error) {
 	if len(c.SuperNodes) > 0 {
 		logrus.Infof("use supernodes: %s", strings.Join(c.SuperNodes, ","))
 	}
-	logrus.Infof("rate limit set to %s", c.RateLimit)
 
 	if c.HijackHTTPS != nil {
 		opts = append(opts, WithHTTPSHosts(c.HijackHTTPS.Hosts...))
