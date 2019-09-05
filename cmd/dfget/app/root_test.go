@@ -27,6 +27,7 @@ import (
 	"github.com/dragonflyoss/Dragonfly/dfget/config"
 	"github.com/dragonflyoss/Dragonfly/pkg/errortypes"
 	"github.com/dragonflyoss/Dragonfly/pkg/model"
+
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/suite"
 )

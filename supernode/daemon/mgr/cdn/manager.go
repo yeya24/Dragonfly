@@ -55,7 +55,7 @@ type Manager struct {
 
 // NewManager returns a new Manager.
 func NewManager(cfg *config.Config, cacheStore *store.Store, progressManager mgr.ProgressMgr, originClient httpclient.OriginHTTPClient) (*Manager, error) {
-	rateLimiter := ratelimiter.NewRateLimiter(ratelimiter.TransRate(int(cfg.MaxBandwidth-cfg.SystemReservedBandwidth)), 2)
+	rateLimiter := ratelimiter.NewRateLimiter(ratelimiter.TransRate(int64(cfg.MaxBandwidth-cfg.SystemReservedBandwidth)), 2)
 	metaDataManager := newFileMetaDataManager(cacheStore)
 	pieceMD5Manager := newpieceMD5Mgr()
 	cdnReporter := newReporter(cfg, cacheStore, progressManager, metaDataManager, pieceMD5Manager)

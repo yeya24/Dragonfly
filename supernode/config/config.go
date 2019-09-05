@@ -22,10 +22,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dragonflyoss/Dragonfly/pkg/model"
-	"gopkg.in/yaml.v2"
-
 	"github.com/dragonflyoss/Dragonfly/pkg/fileutils"
+	"github.com/dragonflyoss/Dragonfly/pkg/model"
+
+	"gopkg.in/yaml.v2"
 )
 
 // NewConfig create an instant with default values.
