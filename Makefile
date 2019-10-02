@@ -167,3 +167,10 @@ df.crt: df.key
 golangci-lint:  ## Run golangci-lint
 	./hack/golangci-lint.sh
 .PHONY: golangci-lint
+
+# Checks Go code comments if they have trailing period.
+.PHONY: check-comments
+check-comments:
+	@grep -Przo --color --include \*.go '\n\s*//[^\n]+[^.?!:]{2}\n\s*[^/\s].*\n' ./ \
+	 && printf "\n\n\n Error: Found comments without trailing period. Please make sure to add them.\n\n\n." \
+	 && false
