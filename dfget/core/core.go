@@ -64,15 +64,15 @@ func Start(cfg *config.Config) *errortypes.DfError {
 	printer.Println(fmt.Sprintf("--%s--  %s",
 		cfg.StartTime.Format(config.DefaultTimestampFormat), cfg.URL))
 
-	if err = prepare(cfg); err != nil {
+	if err = Prepare(cfg); err != nil {
 		return errortypes.New(config.CodePrepareError, err.Error())
 	}
 
-	if result, err = registerToSuperNode(cfg, register); err != nil {
+	if result, err = RegisterToSuperNode(cfg, register); err != nil {
 		return errortypes.New(config.CodeRegisterError, err.Error())
 	}
 
-	if err = downloadFile(cfg, supernodeAPI, register, result); err != nil {
+	if err = DownloadFile(cfg, supernodeAPI, register, result); err != nil {
 		return errortypes.New(config.CodeDownloadError, err.Error())
 	}
 
@@ -80,7 +80,7 @@ func Start(cfg *config.Config) *errortypes.DfError {
 }
 
 // prepare the RV-related information and create the corresponding files.
-func prepare(cfg *config.Config) (err error) {
+func Prepare(cfg *config.Config) (err error) {
 	printer.Printf("dfget version:%s", version.DFGetVersion)
 	printer.Printf("workspace:%s", cfg.WorkHome)
 	printer.Printf("sign:%s", cfg.Sign)
@@ -129,7 +129,7 @@ func launchPeerServer(cfg *config.Config) (err error) {
 	return
 }
 
-func registerToSuperNode(cfg *config.Config, register regist.SupernodeRegister) (
+func RegisterToSuperNode(cfg *config.Config, register regist.SupernodeRegister) (
 	*regist.RegisterResult, error) {
 	defer func() {
 		if r := recover(); r != nil {
@@ -167,7 +167,7 @@ func registerToSuperNode(cfg *config.Config, register regist.SupernodeRegister) 
 	return result, nil
 }
 
-func downloadFile(cfg *config.Config, supernodeAPI api.SupernodeAPI,
+func DownloadFile(cfg *config.Config, supernodeAPI api.SupernodeAPI,
 	register regist.SupernodeRegister, result *regist.RegisterResult) error {
 	var getter downloader.Downloader
 	if cfg.BackSourceReason > 0 {
