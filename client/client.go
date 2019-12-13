@@ -97,6 +97,7 @@ func generateTLSConfig(host string, tls TLSConfig) *tls.Config {
 
 		return tlsCfg
 	}
+
 	return nil
 }
 

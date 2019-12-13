@@ -45,7 +45,6 @@ func TestMain(m *testing.M) {
 	}
 	apiClient = commonAPIClient.(*client.APIClient)
 
-	os.Exit(m.Run())
 }
 
 // Test is the entrypoint.
