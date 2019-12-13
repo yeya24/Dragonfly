@@ -7,6 +7,9 @@ set -o pipefail
 # Extract commit range (or single commit)
 COMMIT_RANGE=$(echo "${CIRCLE_COMPARE_URL}" | cut -d/ -f7)
 
+echo ${CIRCLE_COMPARE_URL}
+echo ${COMMIT_RANGE}
+
 # Fix single commit, unfortunately we don't always get a commit range from Circle CI
 if [[ $COMMIT_RANGE != *"..."* ]]; then
   COMMIT_RANGE="${COMMIT_RANGE}...${COMMIT_RANGE}"
